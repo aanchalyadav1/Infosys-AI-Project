@@ -1,5 +1,5 @@
 # ==========================
-# app.py — Flask Backend (Final Corrected)
+# app.py — Flask Backend (Render-Ready Version)
 # ==========================
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -17,6 +17,7 @@ from dotenv import load_dotenv
 # 1️⃣ App Configuration
 # -----------------------------
 app = Flask(__name__)
+# Allow requests from all domains (you can later restrict to your frontend domain)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 # -----------------------------
@@ -66,7 +67,6 @@ sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(
 # -----------------------------
 # 6️⃣ Routes
 # -----------------------------
-
 @app.route("/")
 def home():
     return jsonify({"message": "🎶 AI Music Recommendation Backend Running!"})
@@ -75,7 +75,6 @@ def home():
 @app.route("/detect", methods=["POST"])
 def detect_emotion():
     try:
-        # Check if image was uploaded
         if "image" not in request.files:
             print("❌ No file found in request.files")
             return jsonify({"success": False, "error": "No image uploaded"}), 400
@@ -83,27 +82,23 @@ def detect_emotion():
         file = request.files["image"]
         filename = file.filename or "uploaded_image.jpg"
 
-        # Temporary save (Render allows /tmp/)
+        # Render allows writing to /tmp
         os.makedirs("/tmp/uploads", exist_ok=True)
         temp_path = os.path.join("/tmp/uploads", filename)
         file.save(temp_path)
         print(f"✅ File saved temporarily: {temp_path}")
 
-        # Read and preprocess image
         img = cv2.imread(temp_path, cv2.IMREAD_GRAYSCALE)
         if img is None:
             return jsonify({"success": False, "error": "Invalid image format"}), 400
 
-        # Preprocess image for emotion detection
         img = cv2.resize(img, (48, 48)) / 255.0
         img = np.expand_dims(img.reshape(48, 48, 1), axis=0)
 
-        # Predict emotion using the loaded model
         if model is not None:
             pred = model.predict(img)
             emotion = emotion_labels[np.argmax(pred)]
         else:
-            # Fallback if model is not loaded
             import random
             emotion = random.choice(emotion_labels)
             print("⚠️ Using fallback emotion detection")
@@ -184,12 +179,6 @@ def forgot_password():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-# 🎧 Spotify Callback
-@app.route("/callback")
-def spotify_callback():
-    return jsonify({"message": "Spotify callback received"})
-
-
 # ✅ Health Check
 @app.route("/health")
 def health():
@@ -197,7 +186,7 @@ def health():
 
 
 # -----------------------------
-# Run the App
+# Run the App (Render auto-detects port)
 # -----------------------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
