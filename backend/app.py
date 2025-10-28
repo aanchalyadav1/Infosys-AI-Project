@@ -1,5 +1,5 @@
 # ==========================
-# app.py — AI Music Backend (Render Final Version)
+# app.py — AI Music Backend (Render Final Fixed Version)
 # ==========================
 
 from flask import Flask, request, jsonify
@@ -12,6 +12,7 @@ from spotipy.oauth2 import SpotifyClientCredentials
 import firebase_admin
 from firebase_admin import credentials, auth, firestore
 import os
+import json
 from dotenv import load_dotenv
 
 # -----------------------------
@@ -19,20 +20,34 @@ from dotenv import load_dotenv
 # -----------------------------
 app = Flask(__name__)
 
-# ✅ Allow only your frontend Render domain
+# ✅ Allow CORS from both your frontend and localhost
 CORS(app, resources={r"/*": {
     "origins": [
-        "https://infosys-ai-project-1-id29.onrender.com",  # your frontend Render domain
-        "http://localhost:3000"  # optional for local testing
+        "https://infosys-ai-project-1-id29.onrender.com",
+        "http://localhost:3000"
     ]
 }})
+
+# ✅ Add global CORS headers for Render strict mode
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', 'https://infosys-ai-project-1-id29.onrender.com')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    return response
+
 
 # -----------------------------
 # 2️⃣ Load Environment Variables
 # -----------------------------
 load_dotenv()
+
 SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
+FIREBASE_CONFIG_JSON = os.getenv("FIREBASE_CONFIG_JSON")  # stored as JSON string in Render Secret
+
+if not SPOTIFY_CLIENT_ID or not SPOTIFY_CLIENT_SECRET:
+    raise Exception("⚠️ Spotify credentials missing in .env or Render environment!")
 
 # -----------------------------
 # 3️⃣ Load Emotion Detection Model
@@ -47,28 +62,33 @@ except Exception as e:
 
 emotion_labels = ['Angry', 'Disgust', 'Fear', 'Happy', 'Neutral', 'Sad', 'Surprise']
 
+
 # -----------------------------
 # 4️⃣ Firebase Initialization
 # -----------------------------
 try:
-    cred = credentials.Certificate("firebaseConfig.json")
-    firebase_admin.initialize_app(cred)
-    db = firestore.client()
-    print("✅ Firebase initialized successfully.")
+    if FIREBASE_CONFIG_JSON:
+        firebase_config_dict = json.loads(FIREBASE_CONFIG_JSON)
+        cred = credentials.Certificate(firebase_config_dict)
+        firebase_admin.initialize_app(cred)
+        db = firestore.client()
+        print("✅ Firebase initialized successfully from environment JSON.")
+    else:
+        print("⚠️ FIREBASE_CONFIG_JSON not found in environment.")
+        db = None
 except Exception as e:
-    print("⚠️ Firebase initialization failed:", e)
+    print("🔥 Firebase initialization failed:", e)
     db = None
+
 
 # -----------------------------
 # 5️⃣ Spotify Configuration
 # -----------------------------
-if not SPOTIFY_CLIENT_ID or not SPOTIFY_CLIENT_SECRET:
-    raise Exception("⚠️ Spotify credentials missing in .env file!")
-
 sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(
     client_id=SPOTIFY_CLIENT_ID,
     client_secret=SPOTIFY_CLIENT_SECRET
 ))
+
 
 # -----------------------------
 # 6️⃣ Routes
@@ -76,6 +96,7 @@ sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(
 @app.route("/")
 def home():
     return jsonify({"message": "🎶 AI Music Recommendation Backend Running!"})
+
 
 # 🎭 Emotion Detection
 @app.route("/detect", methods=["POST"])
@@ -106,7 +127,7 @@ def detect_emotion():
         else:
             import random
             emotion = random.choice(emotion_labels)
-            print("⚠️ Using fallback emotion detection")
+            print("⚠️ Using fallback random emotion detection")
 
         print(f"🎭 Detected Emotion: {emotion}")
         return jsonify({"success": True, "emotion": emotion})
