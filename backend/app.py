@@ -1,6 +1,7 @@
 # ==========================
-# app.py — Flask Backend (Render-Ready Version)
+# app.py — AI Music Backend (Render Final Version)
 # ==========================
+
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import numpy as np
@@ -17,14 +18,19 @@ from dotenv import load_dotenv
 # 1️⃣ App Configuration
 # -----------------------------
 app = Flask(__name__)
-# Allow requests from all domains (you can later restrict to your frontend domain)
-CORS(app, resources={r"/*": {"origins": "*"}})
+
+# ✅ Allow only your frontend Render domain
+CORS(app, resources={r"/*": {
+    "origins": [
+        "https://infosys-ai-project-1-id29.onrender.com",  # your frontend Render domain
+        "http://localhost:3000"  # optional for local testing
+    ]
+}})
 
 # -----------------------------
 # 2️⃣ Load Environment Variables
 # -----------------------------
 load_dotenv()
-
 SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
 
@@ -82,7 +88,6 @@ def detect_emotion():
         file = request.files["image"]
         filename = file.filename or "uploaded_image.jpg"
 
-        # Render allows writing to /tmp
         os.makedirs("/tmp/uploads", exist_ok=True)
         temp_path = os.path.join("/tmp/uploads", filename)
         file.save(temp_path)
@@ -186,7 +191,7 @@ def health():
 
 
 # -----------------------------
-# Run the App (Render auto-detects port)
+# Run the App
 # -----------------------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
