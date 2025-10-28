@@ -8,9 +8,12 @@ export default function EmotionPanel({ onSetTracks }) {
   const [loading, setLoading] = useState(false);
   const [emotion, setEmotion] = useState(null);
 
+  // 🌍 Use environment variable from Render (or fallback to a default for local)
   const backendURL =
     process.env.REACT_APP_BACKEND_URL ||
-    "https://ai-music-backend-xrzo.onrender.com";
+    "https://infosys-ai-project-0.onrender.com";
+
+  console.log("🌍 Using backend URL:", backendURL);
 
   // 🎥 Start camera
   const startCamera = async () => {
@@ -23,7 +26,7 @@ export default function EmotionPanel({ onSetTracks }) {
     }
   };
 
-  // 📸 Capture image from video
+  // 📸 Capture image from live video
   const capture = () => {
     const v = videoRef.current;
     const c = document.createElement("canvas");
@@ -40,13 +43,13 @@ export default function EmotionPanel({ onSetTracks }) {
     );
   };
 
-  // 📂 Handle file upload
+  // 📂 Handle file upload (manual upload)
   const handleFile = (file) => {
     fileRef.current = file;
     setPreview(URL.createObjectURL(file));
   };
 
-  // 🧠 Detect emotion + Recommend songs
+  // 🧠 Detect emotion + Get recommendations
   const handleDetect = async () => {
     if (!fileRef.current) return alert("Upload or capture an image first.");
     setLoading(true);
@@ -55,27 +58,26 @@ export default function EmotionPanel({ onSetTracks }) {
       const form = new FormData();
       form.append("image", fileRef.current);
 
-      // 🔹 Detect emotion
+      // 🔹 Step 1 — Detect emotion
       const detectRes = await axios.post(`${backendURL}/detect`, form, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
       const detectedEmotion =
-        detectRes.data.emotion || detectRes.data?.emotion || "Neutral";
+        detectRes.data?.emotion || "Neutral";
       setEmotion(detectedEmotion);
+      console.log("🎭 Detected Emotion:", detectedEmotion);
 
-      // 🔹 Get recommendations
+      // 🔹 Step 2 — Get recommendations
       const recRes = await axios.post(`${backendURL}/recommend`, {
         emotion: detectedEmotion,
       });
 
-      const songs = recRes.data.songs || [];
+      const songs = recRes.data?.songs || [];
       onSetTracks(songs);
     } catch (err) {
-      console.error("Error:", err);
-      alert(
-        "Failed to detect emotion or get recommendations. Please try again."
-      );
+      console.error("❌ Error during detection:", err);
+      alert("Failed to detect emotion or get recommendations. Please try again.");
     }
 
     setLoading(false);
@@ -86,7 +88,7 @@ export default function EmotionPanel({ onSetTracks }) {
       <h1 className="text-2xl font-bold mb-4">Upload or Capture Your Photo</h1>
 
       <div className="grid md:grid-cols-2 gap-6">
-        {/* Left panel: upload/camera */}
+        {/* 📸 Left panel: Upload or Camera */}
         <div>
           <div className="border-2 border-dashed rounded-2xl p-6 flex flex-col items-center bg-gray-900/40">
             {preview ? (
@@ -96,7 +98,7 @@ export default function EmotionPanel({ onSetTracks }) {
                 className="w-64 h-64 object-cover rounded-xl shadow-lg"
               />
             ) : (
-              <div className="text-gray-400 py-24">
+              <div className="text-gray-400 py-24 text-center">
                 Drag or upload an image
               </div>
             )}
@@ -131,10 +133,11 @@ export default function EmotionPanel({ onSetTracks }) {
             </button>
           </div>
 
+          {/* Hidden video element for camera */}
           <video ref={videoRef} style={{ display: "none" }} />
         </div>
 
-        {/* Right panel: results */}
+        {/* 💬 Right panel: Detected Emotion */}
         <div className="p-4">
           <h3 className="text-xl font-semibold mb-3">Detection</h3>
           <div className="min-h-[120px] flex items-center justify-center text-gray-300">
@@ -152,7 +155,7 @@ export default function EmotionPanel({ onSetTracks }) {
             <ul className="text-sm text-gray-300 list-disc ml-5 space-y-1">
               <li>Good lighting helps detect emotion better.</li>
               <li>Keep your face centered in the frame.</li>
-              <li>Show a clear expression.</li>
+              <li>Show a clear expression for best accuracy.</li>
             </ul>
           </div>
         </div>
