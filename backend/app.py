@@ -1,5 +1,5 @@
 # ==========================
-# app.py — Flask Backend (Final Deployment-Ready)
+# app.py — Flask Backend (Final Corrected)
 # ==========================
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -17,13 +17,7 @@ from dotenv import load_dotenv
 # 1️⃣ App Configuration
 # -----------------------------
 app = Flask(__name__)
-
-# ✅ Allow both deployed and local frontend
-CORS(app, supports_credentials=True, origins=[
-    "https://infosys-ai-project-1-id29.onrender.com",
-    "http://localhost:3000",
-    "https://infosys-ai-project-0.onrender.com/detect"
-])
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 # -----------------------------
 # 2️⃣ Load Environment Variables
@@ -72,6 +66,7 @@ sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(
 # -----------------------------
 # 6️⃣ Routes
 # -----------------------------
+
 @app.route("/")
 def home():
     return jsonify({"message": "🎶 AI Music Recommendation Backend Running!"})
@@ -80,28 +75,35 @@ def home():
 @app.route("/detect", methods=["POST"])
 def detect_emotion():
     try:
+        # Check if image was uploaded
         if "image" not in request.files:
+            print("❌ No file found in request.files")
             return jsonify({"success": False, "error": "No image uploaded"}), 400
 
         file = request.files["image"]
         filename = file.filename or "uploaded_image.jpg"
 
-        # Save temporarily (Render allows /tmp/)
+        # Temporary save (Render allows /tmp/)
         os.makedirs("/tmp/uploads", exist_ok=True)
         temp_path = os.path.join("/tmp/uploads", filename)
         file.save(temp_path)
+        print(f"✅ File saved temporarily: {temp_path}")
 
+        # Read and preprocess image
         img = cv2.imread(temp_path, cv2.IMREAD_GRAYSCALE)
         if img is None:
             return jsonify({"success": False, "error": "Invalid image format"}), 400
 
+        # Preprocess image for emotion detection
         img = cv2.resize(img, (48, 48)) / 255.0
         img = np.expand_dims(img.reshape(48, 48, 1), axis=0)
 
+        # Predict emotion using the loaded model
         if model is not None:
             pred = model.predict(img)
             emotion = emotion_labels[np.argmax(pred)]
         else:
+            # Fallback if model is not loaded
             import random
             emotion = random.choice(emotion_labels)
             print("⚠️ Using fallback emotion detection")
@@ -151,18 +153,14 @@ def recommend_music():
 def signup():
     try:
         data = request.get_json()
-        email = data.get("email")
-        password = data.get("password")
-
-        if not email or not password:
-            return jsonify({"success": False, "error": "Missing email or password"}), 400
+        email = data["email"]
+        password = data["password"]
 
         user = auth.create_user(email=email, password=password)
-        if db:
-            db.collection("users").document(user.uid).set({
-                "email": email,
-                "created": firestore.SERVER_TIMESTAMP
-            })
+        db.collection("users").document(user.uid).set({
+            "email": email,
+            "created": firestore.SERVER_TIMESTAMP
+        })
 
         return jsonify({"success": True, "uid": user.uid, "message": "Signup successful"})
 
@@ -176,10 +174,7 @@ def signup():
 def forgot_password():
     try:
         data = request.get_json()
-        email = data.get("email")
-
-        if not email:
-            return jsonify({"success": False, "error": "Email not provided"}), 400
+        email = data["email"]
 
         link = auth.generate_password_reset_link(email)
         return jsonify({"success": True, "link": link})
@@ -202,7 +197,7 @@ def health():
 
 
 # -----------------------------
-# Run the App (for local only)
+# Run the App
 # -----------------------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
