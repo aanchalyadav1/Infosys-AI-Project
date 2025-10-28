@@ -21,7 +21,8 @@ app = Flask(__name__)
 # ✅ Allow both deployed and local frontend
 CORS(app, supports_credentials=True, origins=[
     "https://infosys-ai-project-1-id29.onrender.com",
-    "http://localhost:3000"
+    "http://localhost:3000",
+    "https://infosys-ai-project-0.onrender.com/detect"
 ])
 
 # -----------------------------
