@@ -28,7 +28,7 @@ LOCALHOST = "http://localhost:3000"
 ALLOWED_ORIGINS = [FRONTEND_URL, BACKEND_HOSTNAME, LOCALHOST]
 
 # Configure Flask-CORS to allow multiple origins and credentials
-CORS(app, resources={r"/*": {"origins": ALLOWED_ORIGINS}}, supports_credentials=True)
+CORS(app, origins=ALLOWED_ORIGINS, supports_credentials=True)
 
 # -----------------------------
 # 2️⃣ Environment Variables
