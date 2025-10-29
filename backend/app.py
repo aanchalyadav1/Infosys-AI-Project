@@ -1,5 +1,5 @@
 # ==========================
-# app.py — AI Music Backend (Render Final v2)
+# app.py — AI Music Backend (Render Final v3 — CORS Fixed)
 # ==========================
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -20,10 +20,16 @@ from werkzeug.utils import secure_filename
 load_dotenv()
 app = Flask(__name__)
 
-# Allow your deployed frontend + localhost
-FRONTEND_URL = os.getenv("FRONTEND_URL", "https://infosys-ai-project-1-id29.onrender.com")
-ALLOWED_ORIGINS = [FRONTEND_URL, "http://localhost:3000"]
-CORS(app, origins=ALLOWED_ORIGINS, supports_credentials=True)
+# ✅ Fix CORS — allow both frontend + localhost
+CORS(app, resources={
+    r"/*": {
+        "origins": [
+            "https://infosys-ai-project-1-id29.onrender.com",  # your frontend
+            "https://infosys-ai-project-0.onrender.com",        # your backend (for testing)
+            "http://localhost:3000"                            # local dev
+        ]
+    }
+})
 
 # -----------------------------
 # 2️⃣ Environment Variables
@@ -112,7 +118,6 @@ def detect_emotion():
         if request.method == "GET":
             return jsonify({"message": "✅ Use POST method to send an image for emotion detection."}), 200
 
-        # Handle POST (actual image detection)
         if "image" not in request.files:
             return jsonify({"success": False, "error": "No image uploaded"}), 400
 
