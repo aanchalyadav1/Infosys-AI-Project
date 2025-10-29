@@ -30,14 +30,6 @@ ALLOWED_ORIGINS = [FRONTEND_URL, BACKEND_HOSTNAME, LOCALHOST]
 # Configure Flask-CORS to allow multiple origins and credentials
 CORS(app, resources={r"/*": {"origins": ALLOWED_ORIGINS}}, supports_credentials=True)
 
-# Make sure preflight responses include required headers
-@app.after_request
-def after_request(response):
-    response.headers.setdefault("Access-Control-Allow-Headers", "Content-Type,Authorization")
-    response.headers.setdefault("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
-    response.headers.setdefault("Access-Control-Allow-Credentials", "true")
-    return response
-
 # -----------------------------
 # 2️⃣ Environment Variables
 # -----------------------------
