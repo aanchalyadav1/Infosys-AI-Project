@@ -1,5 +1,5 @@
 # ==========================
-# app.py — AI Music Backend (Render Final Fixed Version)
+# app.py — AI Music Backend (Render Final + CORS Fixed)
 # ==========================
 
 from flask import Flask, request, jsonify
@@ -19,35 +19,31 @@ from dotenv import load_dotenv
 # 1️⃣ App Configuration
 # -----------------------------
 app = Flask(__name__)
+load_dotenv()  # Load environment variables
 
-# ✅ Allow CORS from both your frontend and localhost
-CORS(app, resources={r"/*": {
-    "origins": [
-        "https://infosys-ai-project-1-id29.onrender.com",
-        "http://localhost:3000"
-    ]
-}})
+# 🔹 Read frontend URL from environment or use default
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://infosys-ai-project-1-id29.onrender.com")
 
-# ✅ Add global CORS headers for Render strict mode
+# ✅ Allow CORS for both frontend and localhost (for local testing)
+CORS(app, resources={r"/*": {"origins": [FRONTEND_URL, "http://localhost:3000"]}})
+
+# ✅ Add global headers (important for Render strict mode)
 @app.after_request
 def after_request(response):
-    response.headers.add('Access-Control-Allow-Origin', 'https://infosys-ai-project-1-id29.onrender.com')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    response.headers.add("Access-Control-Allow-Origin", FRONTEND_URL)
+    response.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization")
+    response.headers.add("Access-Control-Allow-Methods", "GET,PUT,POST,DELETE,OPTIONS")
     return response
 
-
 # -----------------------------
-# 2️⃣ Load Environment Variables
+# 2️⃣ Environment Variables
 # -----------------------------
-load_dotenv()
-
 SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
-FIREBASE_CONFIG_JSON = os.getenv("FIREBASE_CONFIG_JSON")  # stored as JSON string in Render Secret
+FIREBASE_CONFIG_JSON = os.getenv("FIREBASE_CONFIG_JSON")
 
 if not SPOTIFY_CLIENT_ID or not SPOTIFY_CLIENT_SECRET:
-    raise Exception("⚠️ Spotify credentials missing in .env or Render environment!")
+    raise Exception("⚠️ Spotify credentials missing in Render environment!")
 
 # -----------------------------
 # 3️⃣ Load Emotion Detection Model
@@ -60,8 +56,7 @@ except Exception as e:
     print("⚠️ Failed to load emotion model:", e)
     model = None
 
-emotion_labels = ['Angry', 'Disgust', 'Fear', 'Happy', 'Neutral', 'Sad', 'Surprise']
-
+emotion_labels = ["Angry", "Disgust", "Fear", "Happy", "Neutral", "Sad", "Surprise"]
 
 # -----------------------------
 # 4️⃣ Firebase Initialization
@@ -72,23 +67,23 @@ try:
         cred = credentials.Certificate(firebase_config_dict)
         firebase_admin.initialize_app(cred)
         db = firestore.client()
-        print("✅ Firebase initialized successfully from environment JSON.")
+        print("✅ Firebase initialized successfully.")
     else:
-        print("⚠️ FIREBASE_CONFIG_JSON not found in environment.")
+        print("⚠️ FIREBASE_CONFIG_JSON not found.")
         db = None
 except Exception as e:
     print("🔥 Firebase initialization failed:", e)
     db = None
 
-
 # -----------------------------
 # 5️⃣ Spotify Configuration
 # -----------------------------
-sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(
-    client_id=SPOTIFY_CLIENT_ID,
-    client_secret=SPOTIFY_CLIENT_SECRET
-))
-
+sp = spotipy.Spotify(
+    auth_manager=SpotifyClientCredentials(
+        client_id=SPOTIFY_CLIENT_ID,
+        client_secret=SPOTIFY_CLIENT_SECRET,
+    )
+)
 
 # -----------------------------
 # 6️⃣ Routes
@@ -97,22 +92,18 @@ sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(
 def home():
     return jsonify({"message": "🎶 AI Music Recommendation Backend Running!"})
 
-
 # 🎭 Emotion Detection
 @app.route("/detect", methods=["POST"])
 def detect_emotion():
     try:
         if "image" not in request.files:
-            print("❌ No file found in request.files")
             return jsonify({"success": False, "error": "No image uploaded"}), 400
 
         file = request.files["image"]
         filename = file.filename or "uploaded_image.jpg"
-
         os.makedirs("/tmp/uploads", exist_ok=True)
         temp_path = os.path.join("/tmp/uploads", filename)
         file.save(temp_path)
-        print(f"✅ File saved temporarily: {temp_path}")
 
         img = cv2.imread(temp_path, cv2.IMREAD_GRAYSCALE)
         if img is None:
@@ -127,7 +118,6 @@ def detect_emotion():
         else:
             import random
             emotion = random.choice(emotion_labels)
-            print("⚠️ Using fallback random emotion detection")
 
         print(f"🎭 Detected Emotion: {emotion}")
         return jsonify({"success": True, "emotion": emotion})
@@ -135,7 +125,6 @@ def detect_emotion():
     except Exception as e:
         print("🔥 Error in /detect:", e)
         return jsonify({"success": False, "error": str(e)}), 500
-
 
 # 🎵 Music Recommendation
 @app.route("/recommend", methods=["POST"])
@@ -152,22 +141,22 @@ def recommend_music():
         query = f"{emotion} mood {language} songs {artist}"
         results = sp.search(q=query, type="track", limit=5)
 
-        tracks = []
-        for t in results["tracks"]["items"]:
-            tracks.append({
+        tracks = [
+            {
                 "name": t["name"],
                 "artist": t["artists"][0]["name"],
                 "preview": t["preview_url"],
                 "url": t["external_urls"]["spotify"],
-                "album": t["album"]["images"][0]["url"] if t["album"]["images"] else None
-            })
+                "album": t["album"]["images"][0]["url"] if t["album"]["images"] else None,
+            }
+            for t in results["tracks"]["items"]
+        ]
 
         return jsonify({"success": True, "songs": tracks})
 
     except Exception as e:
         print("🔥 Error in /recommend:", e)
         return jsonify({"success": False, "error": str(e)}), 500
-
 
 # 🔐 User Signup
 @app.route("/signup", methods=["POST"])
@@ -178,17 +167,14 @@ def signup():
         password = data["password"]
 
         user = auth.create_user(email=email, password=password)
-        db.collection("users").document(user.uid).set({
-            "email": email,
-            "created": firestore.SERVER_TIMESTAMP
-        })
+        db.collection("users").document(user.uid).set(
+            {"email": email, "created": firestore.SERVER_TIMESTAMP}
+        )
 
         return jsonify({"success": True, "uid": user.uid, "message": "Signup successful"})
-
     except Exception as e:
         print("🔥 Error in /signup:", e)
         return jsonify({"success": False, "error": str(e)}), 500
-
 
 # 🔑 Forgot Password
 @app.route("/forgot-password", methods=["POST"])
@@ -199,17 +185,14 @@ def forgot_password():
 
         link = auth.generate_password_reset_link(email)
         return jsonify({"success": True, "link": link})
-
     except Exception as e:
         print("🔥 Error in /forgot-password:", e)
         return jsonify({"success": False, "error": str(e)}), 500
-
 
 # ✅ Health Check
 @app.route("/health")
 def health():
     return "OK", 200
-
 
 # -----------------------------
 # Run the App
