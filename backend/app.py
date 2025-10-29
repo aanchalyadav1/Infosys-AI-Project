@@ -1,5 +1,5 @@
 # ==========================
-# app.py — AI Music Backend (Render Final)
+# app.py — AI Music Backend (Render Final v2)
 # ==========================
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -9,7 +9,7 @@ import tensorflow as tf
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 import firebase_admin
-from firebase_admin import credentials, auth, firestore
+from firebase_admin import credentials, firestore
 import os, json, traceback
 from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
@@ -31,7 +31,7 @@ CORS(app, origins=ALLOWED_ORIGINS, supports_credentials=True)
 SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
 MODEL_PATH = os.getenv("MODEL_PATH", "emotion_model.keras")
-FIREBASE_CONFIG = os.getenv("FIREBASE_CONFIG")  # renamed to simpler variable
+FIREBASE_CONFIG = os.getenv("FIREBASE_CONFIG")
 
 # -----------------------------
 # 3️⃣ Load Emotion Model
@@ -55,7 +55,6 @@ except Exception as e:
 db = None
 try:
     if FIREBASE_CONFIG:
-        # FIREBASE_CONFIG stored as JSON string in Render env var
         firebase_json = json.loads(FIREBASE_CONFIG)
         cred = credentials.Certificate(firebase_json)
         firebase_admin.initialize_app(cred)
@@ -104,12 +103,16 @@ def allowed_file(filename):
 def home():
     return jsonify({"message": "🎶 AI Music Recommendation Backend Running!"})
 
-@app.route("/detect", methods=["POST", "OPTIONS"])
+@app.route("/detect", methods=["GET", "POST", "OPTIONS"])
 def detect_emotion():
     try:
         if request.method == "OPTIONS":
             return jsonify({"message": "Preflight OK"}), 200
 
+        if request.method == "GET":
+            return jsonify({"message": "✅ Use POST method to send an image for emotion detection."}), 200
+
+        # Handle POST (actual image detection)
         if "image" not in request.files:
             return jsonify({"success": False, "error": "No image uploaded"}), 400
 
@@ -139,13 +142,14 @@ def detect_emotion():
             import random
             emotion = random.choice(emotion_labels)
 
-        print(f"🎭 Emotion: {emotion}")
+        print(f"🎭 Emotion detected: {emotion}")
         return jsonify({"success": True, "emotion": emotion})
 
     except Exception as e:
         print("🔥 /detect error:", e)
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+
 
 @app.route("/recommend", methods=["POST"])
 def recommend_music():
@@ -177,7 +181,7 @@ def recommend_music():
         return jsonify({"success": False, "error": str(e)}), 500
 
 # -----------------------------
-# Run the App
+# 7️⃣ Run the App
 # -----------------------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
