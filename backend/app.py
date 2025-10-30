@@ -1,6 +1,3 @@
-# ==========================
-# app.py — AI Music Backend (Final v4 — Stable Deployment)
-# ==========================
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import numpy as np
@@ -124,17 +121,20 @@ def detect_emotion():
         if file.filename == "":
             return jsonify({"success": False, "error": "Empty filename"}), 400
         if not allowed_file(file.filename):
-            return jsonify({"success": False, "error": "Invalid file type"}), 400
+            return jsonify({"success": False, "error": "Invalid file type. Only PNG, JPG, JPEG, BMP allowed."}), 400
+        if file.content_length > 5 * 1024 * 1024:  # 5MB limit
+            return jsonify({"success": False, "error": "File too large. Max 5MB."}), 400
 
         filename = secure_filename(file.filename)
-        temp_dir = "/tmp/uploads"
+        temp_dir = "/tmp/uploads"  # Use /tmp for Render compatibility
         os.makedirs(temp_dir, exist_ok=True)
         file_path = os.path.join(temp_dir, filename)
         file.save(file_path)
 
         img = cv2.imread(file_path, cv2.IMREAD_GRAYSCALE)
         if img is None:
-            return jsonify({"success": False, "error": "Corrupted image"}), 400
+            os.remove(file_path)  # Cleanup
+            return jsonify({"success": False, "error": "Corrupted or invalid image"}), 400
 
         img = cv2.resize(img, (48, 48)) / 255.0
         img = np.expand_dims(img.reshape(48, 48, 1), axis=0).astype(np.float32)
@@ -146,6 +146,7 @@ def detect_emotion():
             import random
             emotion = random.choice(emotion_labels)
 
+        os.remove(file_path)  # Cleanup temp file
         print(f"🎭 Emotion detected: {emotion}")
         return jsonify({"success": True, "emotion": emotion})
 
@@ -153,7 +154,6 @@ def detect_emotion():
         print("🔥 /detect error:", e)
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
-
 
 @app.route("/recommend", methods=["POST"])
 def recommend_music():
