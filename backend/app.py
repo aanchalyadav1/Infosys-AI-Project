@@ -1,5 +1,5 @@
 # ==========================
-# app.py — AI Music Backend (Final v4 — Stable Deployment)
+# app.py — AI Music Backend (Final v5 — CORS Fixed & Stable)
 # ==========================
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -20,14 +20,24 @@ from werkzeug.utils import secure_filename
 load_dotenv()
 app = Flask(__name__)
 
-# ✅ Allow all origins for now (you can restrict later)
-CORS(app, origins="*", supports_credentials=True)
+# ✅ Enable full CORS support
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
 @app.after_request
 def after_request(response):
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    response.headers.add("Access-Control-Allow-Origin", "*")
+    response.headers.add("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
+    response.headers.add("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+    response.headers.add("Access-Control-Allow-Credentials", "true")
+    return response
+
+# Global handler for all OPTIONS requests (CORS preflight)
+@app.route("/<path:path>", methods=["OPTIONS"])
+def options_handler(path):
+    response = jsonify({"status": "OK"})
+    response.headers.add("Access-Control-Allow-Origin", "*")
+    response.headers.add("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
+    response.headers.add("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
     return response
 
 # -----------------------------
