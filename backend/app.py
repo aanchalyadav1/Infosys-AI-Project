@@ -1,6 +1,8 @@
-from fastapi import FastAPI, File, UploadFile
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+# ==========================
+# app.py — AI Music Backend (Final v4 — Stable Deployment)
+# ==========================
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 import numpy as np
 import cv2
 import tensorflow as tf
@@ -8,33 +10,32 @@ import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 import firebase_admin
 from firebase_admin import credentials, firestore
-import os, json, traceback, random
+import os, json, traceback
 from dotenv import load_dotenv
-from tempfile import NamedTemporaryFile
+from werkzeug.utils import secure_filename
 
 # -----------------------------
-# 1️⃣ App Initialization
+# 1️⃣ App Configuration
 # -----------------------------
 load_dotenv()
-app = FastAPI(title="🎵 AI Music Recommender")
+app = Flask(__name__)
 
-FRONTEND_URL = "https://infosys-ai-project-2-b7l7.onrender.com"
-BACKEND_URL = "https://infosys-ai-project-7.onrender.com"
+# ✅ Allow all origins for now (you can restrict later)
+CORS(app, origins="*", supports_credentials=True)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[FRONTEND_URL, BACKEND_URL, "*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    return response
 
 # -----------------------------
 # 2️⃣ Environment Variables
 # -----------------------------
 SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
-MODEL_PATH = os.getenv("MODEL_PATH", "emotion_model.keras")
+MODEL_PATH = os.getenv("MODEL_PATH", "emotion_model.keras")  # ✅ correct model name
 FIREBASE_CONFIG = os.getenv("FIREBASE_CONFIG")
 
 # -----------------------------
@@ -46,9 +47,9 @@ emotion_labels = ["Angry", "Disgust", "Fear", "Happy", "Neutral", "Sad", "Surpri
 try:
     if os.path.exists(MODEL_PATH):
         model = tf.keras.models.load_model(MODEL_PATH)
-        print("✅ Emotion model loaded successfully")
+        print("✅ Emotion model loaded successfully from", MODEL_PATH)
     else:
-        print("⚠️ Model not found; using fallback.")
+        print(f"⚠️ Model not found at {MODEL_PATH}; using random fallback.")
 except Exception as e:
     print("❌ Model load failed:", e)
     traceback.print_exc()
@@ -63,9 +64,17 @@ try:
         cred = credentials.Certificate(firebase_json)
         firebase_admin.initialize_app(cred)
         db = firestore.client()
-        print("✅ Firebase initialized.")
+        print("✅ Firebase initialized successfully (from env).")
+    elif os.path.exists("firebase_config.json"):
+        cred = credentials.Certificate("firebase_config.json")
+        firebase_admin.initialize_app(cred)
+        db = firestore.client()
+        print("✅ Firebase initialized from file.")
+    else:
+        print("⚠️ No Firebase config found; skipping initialization.")
 except Exception as e:
-    print("⚠️ Firebase initialization failed:", e)
+    print("🔥 Firebase initialization failed:", e)
+    traceback.print_exc()
 
 # -----------------------------
 # 5️⃣ Spotify Setup
@@ -79,29 +88,53 @@ try:
                 client_secret=SPOTIFY_CLIENT_SECRET,
             )
         )
-        print("✅ Spotify client ready.")
+        print("✅ Spotify client initialized.")
+    else:
+        print("⚠️ Spotify credentials missing.")
 except Exception as e:
-    print("⚠️ Spotify setup failed:", e)
+    print("❌ Spotify setup failed:", e)
+    traceback.print_exc()
+
+# -----------------------------
+# Utils
+# -----------------------------
+def allowed_file(filename):
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in {"png", "jpg", "jpeg", "bmp"}
 
 # -----------------------------
 # 6️⃣ Routes
 # -----------------------------
-@app.get("/")
+@app.route("/")
 def home():
-    return {"message": "🎶 AI Music Recommendation Backend (FastAPI) Running!"}
+    return jsonify({"message": "🎶 AI Music Recommendation Backend Running!"})
 
-
-@app.post("/detect")
-async def detect_emotion(image: UploadFile = File(...)):
+@app.route("/detect", methods=["GET", "POST", "OPTIONS"])
+def detect_emotion():
     try:
-        # Save image temporarily
-        with NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
-            tmp.write(await image.read())
-            temp_path = tmp.name
+        if request.method == "OPTIONS":
+            return jsonify({"message": "Preflight OK"}), 200
 
-        img = cv2.imread(temp_path, cv2.IMREAD_GRAYSCALE)
+        if request.method == "GET":
+            return jsonify({"message": "✅ Use POST method to send an image for emotion detection."}), 200
+
+        if "image" not in request.files:
+            return jsonify({"success": False, "error": "No image uploaded"}), 400
+
+        file = request.files["image"]
+        if file.filename == "":
+            return jsonify({"success": False, "error": "Empty filename"}), 400
+        if not allowed_file(file.filename):
+            return jsonify({"success": False, "error": "Invalid file type"}), 400
+
+        filename = secure_filename(file.filename)
+        temp_dir = "/tmp/uploads"
+        os.makedirs(temp_dir, exist_ok=True)
+        file_path = os.path.join(temp_dir, filename)
+        file.save(file_path)
+
+        img = cv2.imread(file_path, cv2.IMREAD_GRAYSCALE)
         if img is None:
-            return JSONResponse(content={"success": False, "error": "Invalid image"}, status_code=400)
+            return jsonify({"success": False, "error": "Corrupted image"}), 400
 
         img = cv2.resize(img, (48, 48)) / 255.0
         img = np.expand_dims(img.reshape(48, 48, 1), axis=0).astype(np.float32)
@@ -110,25 +143,29 @@ async def detect_emotion(image: UploadFile = File(...)):
             preds = model.predict(img)
             emotion = emotion_labels[int(np.argmax(preds))]
         else:
+            import random
             emotion = random.choice(emotion_labels)
 
         print(f"🎭 Emotion detected: {emotion}")
-        return {"success": True, "emotion": emotion}
+        return jsonify({"success": True, "emotion": emotion})
+
     except Exception as e:
+        print("🔥 /detect error:", e)
         traceback.print_exc()
-        return JSONResponse(content={"success": False, "error": str(e)}, status_code=500)
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@app.post("/recommend")
-async def recommend_music(payload: dict):
+@app.route("/recommend", methods=["POST"])
+def recommend_music():
     try:
-        emotion = payload.get("emotion", "")
+        data = request.get_json(force=True)
+        emotion = data.get("emotion", "")
         if not emotion:
-            return JSONResponse(content={"success": False, "error": "Emotion missing"}, status_code=400)
+            return jsonify({"success": False, "error": "Emotion missing"}), 400
 
         if not sp:
             mock = [{"name": f"{emotion} Song {i+1}", "artist": "Various"} for i in range(5)]
-            return {"success": True, "songs": mock}
+            return jsonify({"success": True, "songs": mock})
 
         query = f"{emotion} mood songs"
         res = sp.search(q=query, type="track", limit=5)
@@ -142,7 +179,15 @@ async def recommend_music(payload: dict):
             }
             for t in res["tracks"]["items"]
         ]
-        return {"success": True, "songs": tracks}
+        return jsonify({"success": True, "songs": tracks})
     except Exception as e:
+        print("🔥 /recommend error:", e)
         traceback.print_exc()
-        return JSONResponse(content={"success": False, "error": str(e)}, status_code=500)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+# -----------------------------
+# 7️⃣ Run the App
+# -----------------------------
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8000))
+    app.run(host="0.0.0.0", port=port)
