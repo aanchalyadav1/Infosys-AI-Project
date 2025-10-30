@@ -1,5 +1,5 @@
 # ==========================
-# app.py — AI Music Backend (Final v5 — CORS Fixed & Stable)
+# app.py — AI Music Backend (Final v5 — Render CORS Fixed)
 # ==========================
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -20,24 +20,25 @@ from werkzeug.utils import secure_filename
 load_dotenv()
 app = Flask(__name__)
 
-# ✅ Enable full CORS support
-CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+# ✅ Frontend + Backend URLs (Render)
+FRONTEND_URL = "https://infosys-ai-project-2-b7l7.onrender.com"
+BACKEND_URL = "https://infosys-ai-project-7.onrender.com"
+
+# ✅ Allow only these origins
+CORS(
+    app,
+    origins=[FRONTEND_URL, BACKEND_URL],
+    methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
+    supports_credentials=True,
+)
 
 @app.after_request
 def after_request(response):
-    response.headers.add("Access-Control-Allow-Origin", "*")
-    response.headers.add("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
-    response.headers.add("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+    response.headers.add("Access-Control-Allow-Origin", FRONTEND_URL)
+    response.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization")
+    response.headers.add("Access-Control-Allow-Methods", "GET,PUT,POST,DELETE,OPTIONS")
     response.headers.add("Access-Control-Allow-Credentials", "true")
-    return response
-
-# Global handler for all OPTIONS requests (CORS preflight)
-@app.route("/<path:path>", methods=["OPTIONS"])
-def options_handler(path):
-    response = jsonify({"status": "OK"})
-    response.headers.add("Access-Control-Allow-Origin", "*")
-    response.headers.add("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
-    response.headers.add("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
     return response
 
 # -----------------------------
@@ -45,7 +46,7 @@ def options_handler(path):
 # -----------------------------
 SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
-MODEL_PATH = os.getenv("MODEL_PATH", "emotion_model.keras")  # ✅ correct model name
+MODEL_PATH = os.getenv("MODEL_PATH", "emotion_model.keras")
 FIREBASE_CONFIG = os.getenv("FIREBASE_CONFIG")
 
 # -----------------------------
