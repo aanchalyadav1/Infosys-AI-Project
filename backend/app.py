@@ -20,18 +20,15 @@ from werkzeug.utils import secure_filename
 load_dotenv()
 app = Flask(__name__)
 
-# ✅ Fix CORS — allow both frontend + localhost
-CORS(app, resources={
-    r"/*": {
-        "origins": [
-            "https://infosys-ai-project-1-id29.onrender.com",  # frontend
-            "https://infosys-ai-project-0.onrender.com",        # backend
-            "http://localhost:3000"                            # local dev
-        ],
-        "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"]
-    }
-})
+# ✅ Allow all origins for now (you can restrict later)
+CORS(app, origins="*", supports_credentials=True)
+
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    return response
 
 # -----------------------------
 # 2️⃣ Environment Variables
