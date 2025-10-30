@@ -29,6 +29,7 @@ export default function EmotionPanel({ onSetTracks }) {
   // 📸 Capture image from live video
   const capture = () => {
     const v = videoRef.current;
+    if (!v || !v.videoWidth) return alert("Camera not active. Start the camera first.");
     const c = document.createElement("canvas");
     c.width = v.videoWidth;
     c.height = v.videoHeight;
@@ -43,10 +44,22 @@ export default function EmotionPanel({ onSetTracks }) {
     );
   };
 
-  // 📂 Handle file upload (manual upload)
+  // 📂 Handle file upload (manual upload) with validation
   const handleFile = (file) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      alert('Please select a valid image file (e.g., JPEG, PNG).');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {  // 5MB limit
+      alert('File size too large. Please choose an image under 5MB.');
+      return;
+    }
     fileRef.current = file;
-    setPreview(URL.createObjectURL(file));
+    // Create a reliable preview
+    const reader = new FileReader();
+    reader.onload = () => setPreview(reader.result);
+    reader.readAsDataURL(file);
   };
 
   // 🧠 Detect emotion + Get recommendations
@@ -63,8 +76,7 @@ export default function EmotionPanel({ onSetTracks }) {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
-      const detectedEmotion =
-        detectRes.data?.emotion || "Neutral";
+      const detectedEmotion = detectRes.data?.emotion || "Neutral";
       setEmotion(detectedEmotion);
       console.log("🎭 Detected Emotion:", detectedEmotion);
 
@@ -77,10 +89,10 @@ export default function EmotionPanel({ onSetTracks }) {
       onSetTracks(songs);
     } catch (err) {
       console.error("❌ Error during detection:", err);
-      alert("Failed to detect emotion or get recommendations. Please try again.");
+      alert("Failed to detect emotion or get recommendations. Check the console for details.");
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
