@@ -17,9 +17,16 @@ from werkzeug.utils import secure_filename
 load_dotenv()
 app = Flask(__name__)
 
-# ✅ Allow all origins for now (you can restrict later)
-CORS(app, origins="*", supports_credentials=True)
-
+CORS(app, 
+     resources={
+         r"/api/*": {
+             "origins": ["https://infosys-ai-project-7.onrender.com", "https://infosys-ai-project-2-b7l7.onrender.com"],
+             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+             "allow_headers": ["Content-Type", "Authorization"],
+             "supports_credentials": True,
+             "expose_headers": ["Content-Type", "Authorization"]
+         }
+     })
 @app.after_request
 def after_request(response):
     response.headers.add('Access-Control-Allow-Origin', '*')
